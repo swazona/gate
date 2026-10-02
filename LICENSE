@@ -1,0 +1,4 @@
+Copyright (c) 2026 Swazona. The files in this repository (action.yml,
+scripts/, rules/, schema/, README.md) may be used, copied and modified to
+run the Swazona release gate. The prebuilt binaries this Action downloads
+are licensed, not sold, under the terms at https://swazona.ai/eula.
