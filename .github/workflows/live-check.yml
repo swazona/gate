@@ -1,0 +1,60 @@
+# live-check.yml — rendered by DIST-2's release steps (gatedist's own tree never ships
+# this template: v1.0.0 is substituted with the just-published tag and the result
+# is pushed to swazona/gate itself, on a throwaway branch, as a one-time live probe of
+# the published Action). Two things are proved against the real, public release: a
+# genuinely public repo with no SWAZONA_LICENSE needs no license (the free tier), and a
+# commit that exists only locally (never pushed to the public repo) is refused. The PR
+# this opens is never merged — closed unmerged once its checks have run.
+on: pull_request
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  free:
+    name: free tier (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: swazona-gate (shadow, free tier)
+        uses: swazona/gate@v1.0.0
+        with:
+          mode: shadow
+          attest: 'false'
+
+  absent:
+    name: commit absent from the public repo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Commit a local-only change
+        id: local
+        run: |
+          set -euo pipefail
+          git -c user.name=probe -c user.email=probe@invalid commit --allow-empty -q -m local-only
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: swazona-gate (enforce, commit absent from this public repo)
+        uses: swazona/gate@v1.0.0
+        with:
+          mode: enforce
+          attest: 'false'
+          head: ${{ steps.local.outputs.sha }}
