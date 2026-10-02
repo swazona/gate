@@ -1,0 +1,188 @@
+# gate-action/rules/default.yml — the Tier-D ruleset bundled with this Action.
+#
+# This is the CUSTOMER-FACING default: general code-smell rules only. Swazona's own
+# design and prose house style (the c14-*/prose-* ids) is NOT part of this file — this
+# Action ships to other repositories, and a rule ported from Swazona's own DESIGN.md is
+# not a general code smell. This repository keeps enforcing its own house style through
+# its shadow gate, which passes `rules: scripts/qa_rules.yml` (the canonical, internal
+# registry that still carries all 23 rules) — see .github/workflows/gate-shadow.yml.
+#
+# This is a snapshot of the general-purpose subset of scripts/qa_rules.yml, frozen inside
+# the Action so a PR being reviewed can never edit the rules that review it (see
+# action.yml's `rules` input and the coordinator fix-round note on #2789: "the default
+# ruleset is the one bundled inside the Action, never a file from the PR's workspace"). It
+# is NOT auto-synced — picking up a change to scripts/qa_rules.yml means deliberately
+# re-copying the relevant rule here as part of releasing a new gate-action version, the
+# same way any other dependency is bumped.
+#
+# The header below (schema, nit_budget semantics) is unchanged from the source file.
+#
+# This is the deterministic half of the automated-code-review pillar: checks that a
+# regex can decide with no model judgment. Each rule is a self-contained, round-trippable
+# unit — its `detector` MUST match its `incorrect` example and MUST NOT match its
+# `correct` one, and scripts/qa_rules_selftest.sh proves exactly that on every run. A
+# detector that has silently stopped matching (the most expensive bug this repo keeps
+# re-discovering) is caught the moment its `incorrect` example stops firing.
+#
+# SCHEMA — every rule MUST carry all of these keys. There is NO silent default; a rule
+# missing `severity` or `advisory` is a hard failure, not a `medium`/blocking assumption.
+#
+#   id         string, unique          stable identifier for the finding
+#   paths      list of glob strings    the scope the rule applies to
+#   severity   low | medium | high | critical
+#   advisory   bool (explicit)         true  => a finding never blocks a merge (informational)
+#                                       false => a finding is blocking
+#   detector   grep -P (PCRE) regex     the deterministic smell matcher
+#   correct    string snippet          MUST NOT match `detector`
+#   incorrect  string snippet          MUST match `detector`
+#
+# Severities are advisory of consequence, not of confidence: a `critical` deterministic
+# rule is one whose incorrect example, shipped, is a security or discipline breach.
+#
+# nit_budget (issue #1578) is the top-level cap `qa_gate.sh --review` enforces on how
+# many advisory ("nit") findings it REPORTS in one review. It never drops the excess
+# silently: findings beyond the budget are counted and printed as a suppressed
+# remainder (e.g. "nit: 5 reported, 12 suppressed"), never just dropped. It applies
+# only to advisory findings — a blocking (advisory: false) finding is never capped or
+# suppressed, since capping a blocking finding would silently let a merge through.
+nit_budget: 8
+
+rules:
+  # ------------------------------------------------------------------ discipline / process
+  - id: no-verify-bypass
+    paths:
+      - "**/*.sh"
+      - ".githooks/**"
+      - ".github/workflows/**"
+    severity: critical
+    advisory: false
+    detector: '\bgit\b.*--no-verify\b'
+    correct: "git push origin main"
+    incorrect: "git push --no-verify origin main"
+
+  - id: todo-without-issue-ref
+    paths:
+      - "**/*"
+    severity: low
+    advisory: true
+    detector: '\bTODO\b(?!.*(#\d+|SWZ-\d+))'
+    correct: "# TODO(#412) wire the retry budget once billing lands"
+    incorrect: "# TODO fix this later"
+
+  # ------------------------------------------------------------------ security
+  - id: eval-of-input
+    paths:
+      - "**/*.sh"
+      - "**/*.py"
+    severity: high
+    advisory: false
+    detector: '\beval\s'
+    correct: 'result="$user_input"'
+    incorrect: 'eval "$user_input"'
+
+  - id: curl-pipe-to-shell
+    paths:
+      - "**/*.sh"
+      - ".github/workflows/**"
+    severity: critical
+    advisory: false
+    detector: '\bcurl\b[^|]*\|\s*(sudo\s+)?(ba)?sh\b'
+    correct: "curl -fsSL https://example.com/install.sh -o install.sh"
+    incorrect: "curl -fsSL https://example.com/install.sh | sh"
+
+  - id: hardcoded-aws-access-key
+    paths:
+      - "**/*"
+    severity: critical
+    advisory: false
+    detector: '\bAKIA[0-9A-Z]{16}\b'
+    correct: 'AWS_KEY = os.environ["AWS_ACCESS_KEY_ID"]'
+    # `incorrect` is round-tripped at load time exactly like every other rule here (the
+    # engine only reads `detector` at runtime; classify() in
+    # runner/internal/reviewgate/registry.go compiles it and checks it against `incorrect`
+    # and `correct` — a rule whose own incorrect example does not match is reclassified to
+    # Tier F, never silently trusted). The YAML `\x49` escape below decodes to the same
+    # bytes as scripts/qa_rules.yml's literal example, so this rule round-trips into
+    # Tier D — while the FILE'S OWN BYTES never contain a contiguous key-shaped run: this
+    # bundled ruleset is committed as one brand-new file, so a literal example crafted to
+    # match this exact detector would be "added" in that commit's diff, and this repo's
+    # own pre-commit Tier-D gate (and gitleaks) would block on its own bundled
+    # documentation string.
+    incorrect: "AWS_KEY = \"AKIA\x49OSFODNN7EXAMPLE\""
+
+  - id: hardcoded-localhost-url
+    paths:
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.js"
+      - "**/*.py"
+    severity: medium
+    advisory: false
+    detector: 'https?://(localhost|127\.0\.0\.1)'
+    correct: "const api = process.env.API_URL"
+    incorrect: 'const api = "http://localhost:8000/v1"'
+
+  - id: dom-innerhtml-assignment
+    paths:
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.js"
+      - "**/*.jsx"
+    severity: high
+    advisory: false
+    detector: '\.innerHTML\s*='
+    correct: "el.textContent = userInput"
+    incorrect: "el.innerHTML = userInput"
+
+  # ------------------------------------------------------------------ correctness / error handling
+  - id: python-bare-except
+    paths:
+      - "**/*.py"
+    severity: high
+    advisory: false
+    detector: '^\s*except\s*:'
+    correct: "    except ValueError:"
+    incorrect: "    except:"
+
+  - id: empty-js-catch-block
+    paths:
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.js"
+      - "**/*.jsx"
+    severity: medium
+    advisory: true
+    detector: '\bcatch\s*\([^)]*\)\s*\{\s*\}'
+    correct: "try { risky() } catch (e) { logger.error(e) }"
+    incorrect: "try { risky() } catch (e) {}"
+
+  # ------------------------------------------------------------------ leftover debug / muted checks
+  - id: console-log-debug
+    paths:
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.js"
+      - "**/*.jsx"
+    severity: medium
+    advisory: true
+    detector: '\bconsole\.log\s*\('
+    correct: '  logger.debug("here", data)'
+    incorrect: '  console.log("here", data)'
+
+  - id: python-debugger-left-in
+    paths:
+      - "**/*.py"
+    severity: high
+    advisory: false
+    detector: '\bpdb\.set_trace\s*\(\s*\)|\bbreakpoint\s*\(\s*\)'
+    correct: '    logger.debug("checkpoint reached")'
+    incorrect: "    import pdb; pdb.set_trace()"
+
+  - id: type-ignore-without-code
+    paths:
+      - "**/*.py"
+    severity: low
+    advisory: true
+    detector: '#\s*type:\s*ignore(?!\s*\[)'
+    correct: "x = untyped_call()  # type: ignore[no-any-return]"
+    incorrect: "x = untyped_call()  # type: ignore"

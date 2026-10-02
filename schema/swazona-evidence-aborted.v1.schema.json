@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "swazona-evidence-aborted/1",
+  "title": "swazona-evidence-aborted.json v1",
+  "type": "object",
+  "required": ["schema", "invocation_id", "run", "head_sha", "check_run", "failed_step", "reason", "conclusion"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "swazona-evidence-aborted/1"},
+    "invocation_id": {"type": "string"},
+    "run": {
+      "type": "object",
+      "required": ["repository", "run_id", "run_attempt", "workflow", "event"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {"type": "string"},
+        "run_id": {"type": "integer", "minimum": 0},
+        "run_attempt": {"type": "integer", "minimum": 0},
+        "workflow": {"type": "string"},
+        "event": {"type": "string"}
+      }
+    },
+    "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "check_run": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "integer", "minimum": 0},
+        "name": {"const": "swazona-gate"}
+      }
+    },
+    "failed_step": {"type": "string"},
+    "reason": {"type": "string"},
+    "conclusion": {"enum": ["failure", "neutral"]}
+  }
+}

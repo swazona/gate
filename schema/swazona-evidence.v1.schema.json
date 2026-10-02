@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "swazona-evidence/1",
+  "title": "swazona-evidence.json v1",
+  "type": "object",
+  "required": ["schema", "invocation_id", "run", "head_sha", "base_sha", "result_sha256", "tool_versions", "mode", "block_on_model_findings", "conclusion", "enforce_conclusion", "conclusion_reasons", "check_run", "digests", "models", "findings", "refuted", "discarded", "unknowns", "not_checked", "trust", "cost", "attestation"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "swazona-evidence/1"},
+    "invocation_id": {"type": "string", "pattern": "^[0-9]{1,20}-[0-9]{1,10}-[0-9a-f]{32}$"},
+    "run": {
+      "type": "object",
+      "required": ["repository", "run_id", "run_attempt", "workflow", "event"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {"type": "string"},
+        "run_id": {"type": "integer", "minimum": 0},
+        "run_attempt": {"type": "integer", "minimum": 0},
+        "workflow": {"type": "string"},
+        "event": {"type": "string"}
+      }
+    },
+    "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "result_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "tool_versions": {
+      "type": "object",
+      "required": ["swazona_gate", "swazona_evidence", "go"],
+      "additionalProperties": false,
+      "properties": {
+        "swazona_gate": {"type": "string"},
+        "swazona_evidence": {"const": "0.1.0"},
+        "go": {"type": "string"}
+      }
+    },
+    "mode": {"enum": ["shadow", "enforce"]},
+    "block_on_model_findings": {"type": "boolean"},
+    "conclusion": {"enum": ["success", "failure", "neutral"]},
+    "enforce_conclusion": {"enum": ["success", "failure"]},
+    "conclusion_reasons": {"type": "array", "items": {"type": "string"}},
+    "check_run": {
+      "type": "object",
+      "required": ["id", "name", "annotations"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "integer", "minimum": 0},
+        "name": {"const": "swazona-gate"},
+        "annotations": {"type": "integer", "minimum": 0}
+      }
+    },
+    "digests": {
+      "type": "object",
+      "required": ["diff", "ruleset", "cache_key", "prompts"],
+      "additionalProperties": false,
+      "properties": {
+        "diff": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "ruleset": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "cache_key": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "prompts": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+      }
+    },
+    "models": {
+      "type": "object",
+      "required": ["finder", "refuter", "cache"],
+      "additionalProperties": false,
+      "properties": {
+        "finder": {"$ref": "#/$defs/modelRef"},
+        "refuter": {"$ref": "#/$defs/modelRef"},
+        "cache": {"enum": ["hit", "miss", "off"]}
+      }
+    },
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/record"}},
+    "refuted": {"type": "array", "items": {"$ref": "#/$defs/record"}},
+    "discarded": {"type": "array", "items": {"$ref": "#/$defs/record"}},
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "tier", "rule_id", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "pattern": "^U[0-9]{3,}$"},
+          "tier": {"enum": ["D", "F", "V"]},
+          "rule_id": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "not_checked": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "path", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {"enum": ["tier-d-not-run", "binary", "no-applicable-rules", "model-tiers-off", "tier-f-rules-not-run", "model-incomplete", "model-unreviewed", "attestation-disabled", "attestation-unavailable"]},
+          "path": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "trust": {
+      "type": "object",
+      "required": ["findings_by_severity", "blocking", "advisory", "refuted", "discarded", "unknowns", "model_ids", "ruleset_digest", "cache_key"],
+      "additionalProperties": false,
+      "properties": {
+        "findings_by_severity": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "blocking": {"type": "integer", "minimum": 0},
+        "advisory": {"type": "integer", "minimum": 0},
+        "refuted": {"type": "integer", "minimum": 0},
+        "discarded": {"type": "integer", "minimum": 0},
+        "unknowns": {"type": "integer", "minimum": 0},
+        "model_ids": {"type": "array", "items": {"type": "string"}},
+        "ruleset_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "cache_key": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "cost": {
+      "type": "object",
+      "required": ["tokens_in", "tokens_out", "usd_micros", "cap_usd_micros", "cap_hit", "cache"],
+      "additionalProperties": false,
+      "properties": {
+        "tokens_in": {"type": "integer", "minimum": 0},
+        "tokens_out": {"type": "integer", "minimum": 0},
+        "usd_micros": {"type": "integer", "minimum": 0},
+        "cap_usd_micros": {"type": "integer", "minimum": 0},
+        "cap_hit": {"type": "boolean"},
+        "cache": {"enum": ["hit", "miss", "off"]}
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "required": ["required"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {"enum": ["auto", "true", "false"]},
+        "required": {"type": "boolean"}
+      }
+    }
+  },
+  "$defs": {
+    "modelRef": {
+      "type": "object",
+      "required": ["provider", "model"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": {"enum": ["anthropic", "openai", ""]},
+        "model": {"type": "string"}
+      }
+    },
+    "record": {
+      "type": "object",
+      "required": ["id", "tier", "rule_id", "severity", "blocking", "file", "line", "what", "why", "how", "reproduce", "confidence", "refuter_verdict", "refuter_why", "refuter_cited_line", "refuter_downgraded", "discard_reason"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^(F|R|X)[0-9]{3,}$"},
+        "tier": {"enum": ["D", "F"]},
+        "rule_id": {"type": "string"},
+        "severity": {"type": "string"},
+        "blocking": {"type": "boolean"},
+        "file": {"type": "string"},
+        "line": {"type": "integer", "minimum": 0},
+        "what": {"type": "string"},
+        "why": {"type": "string"},
+        "how": {"type": "string"},
+        "reproduce": {
+          "type": "object",
+          "required": ["argv", "line", "detector"],
+          "additionalProperties": false,
+          "properties": {
+            "argv": {"type": "array", "items": {"type": "string"}},
+            "line": {"type": "integer", "minimum": 0},
+            "detector": {"type": "string"}
+          }
+        },
+        "confidence": {"enum": ["deterministic", "refuter-confirmed", "refuter-uncertain", "refuter-not-run", "refuter-disproved", "discarded"]},
+        "refuter_verdict": {"enum": ["CONFIRMED", "UNCERTAIN", "DISPROVED", "NOT_RUN", "N/A"]},
+        "refuter_why": {"type": "string"},
+        "refuter_cited_line": {"type": "integer", "minimum": 0},
+        "refuter_downgraded": {"type": "boolean"},
+        "discard_reason": {"enum": ["", "off_diff_line", "duplicate", "unknown_rule", "unparseable"]}
+      }
+    }
+  }
+}
